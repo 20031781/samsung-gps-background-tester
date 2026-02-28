@@ -107,6 +107,29 @@ export const requestPermissions = async (): Promise<{
 export const startTracking = async (config: TrackingConfig): Promise<string> => {
   const sessionId = uuidv4();
   const startedAt = new Date().toISOString();
+  try {
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.Highest,
+      timeInterval: config.timeIntervalMs,
+      distanceInterval: config.distanceIntervalM,
+      deferredUpdatesInterval: config.deferredUpdatesIntervalMs,
+      deferredUpdatesDistance: config.deferredUpdatesDistanceM,
+      showsBackgroundLocationIndicator: true,
+      pausesUpdatesAutomatically: false,
+      foregroundService: Platform.OS === 'android'
+        ? {
+            notificationTitle: 'Tracking attivo',
+            notificationBody: 'Raccolta GPS in background in corso.',
+            notificationColor: '#222222',
+          }
+        : undefined,
+    });
+  } catch (error) {
+    const msg = safeTaskError(error);
+    writeLog('error', 'tracking', `Impossibile avviare la sessione: ${msg}`);
+    throw error;
+  }
+
   setKv('activeSessionId', sessionId);
   setKv('seq', '0');
   setKv('lastUpdateTs', startedAt);
@@ -117,23 +140,6 @@ export const startTracking = async (config: TrackingConfig): Promise<string> => 
     startedAt,
     endedAt: null,
     configJson: JSON.stringify(config),
-  });
-
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-    accuracy: Location.Accuracy.Highest,
-    timeInterval: config.timeIntervalMs,
-    distanceInterval: config.distanceIntervalM,
-    deferredUpdatesInterval: config.deferredUpdatesIntervalMs,
-    deferredUpdatesDistance: config.deferredUpdatesDistanceM,
-    showsBackgroundLocationIndicator: true,
-    pausesUpdatesAutomatically: false,
-    foregroundService: Platform.OS === 'android'
-      ? {
-          notificationTitle: 'Tracking attivo',
-          notificationBody: 'Raccolta GPS in background in corso.',
-          notificationColor: '#222222',
-        }
-      : undefined,
   });
 
   writeLog('info', 'tracking', `Sessione avviata: ${sessionId}`);
