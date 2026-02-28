@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Samsung GPS Background Tester",
+    "slug": "samsung-gps-background-tester",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "android": {
+      "package": "com.example.samsunggpsbackgroundtester",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Consenti all'app di raccogliere la posizione anche in background per i test GPS.",
+          "locationAlwaysPermission": "Consenti all'app di raccogliere la posizione anche in background per i test GPS.",
+          "locationWhenInUsePermission": "Consenti all'app di usare la posizione mentre la app \u00e8 in uso.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true,
+          "isIosBackgroundLocationEnabled": true
+        }
+      ],
+      "expo-notifications"
+    ]
+  }
+}
