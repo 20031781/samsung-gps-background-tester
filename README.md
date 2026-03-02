@@ -8,17 +8,33 @@ UI minimale con 3 schermate:
 
 ## Setup
 
-```bash
+```
 npm install
-npm run start
 ```
 
-Per Android (consigliato):
+Avvio sviluppo (Expo CLI locale, consigliato):
+
+
 ```bash
-npm run android
+npx expo start
 ```
 
-> Nota: per background location affidabile su Android è consigliato un build dev client / release, non solo Expo Go.
+Nota:
+Usa sempre "npx expo" per garantire l’utilizzo della CLI locale compatibile con la SDK del progetto.
+
+---
+
+## Run su Android (consigliato per test background GPS)
+
+Per test affidabili del background location NON usare Expo Go.
+
+Esegui un build dev client:
+
+```bash
+npx expo run:android
+```
+
+Questo genera ed installa l’app nativa con manifest e foreground service corretti.
 
 ## Build/Run
 
