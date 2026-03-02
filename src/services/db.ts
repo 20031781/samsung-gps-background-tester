@@ -1,4 +1,4 @@
-import * as SQLite from 'expo-sqlite';
+import * as SQLite from "expo-sqlite";
 
 export type SessionRow = {
   id: string;
@@ -21,7 +21,7 @@ export type PointInsert = {
   rawJson: string;
 };
 
-const db = SQLite.openDatabaseSync('gps_tester.db');
+const db = SQLite.openDatabaseSync("gps_tester.db");
 
 export const initDb = (): void => {
   db.execSync(`
@@ -65,13 +65,16 @@ export const initDb = (): void => {
 
 export const insertSession = (session: SessionRow): void => {
   db.runSync(
-    'INSERT INTO sessions(id, startedAt, endedAt, configJson) VALUES (?, ?, ?, ?)',
+    "INSERT INTO sessions(id, startedAt, endedAt, configJson) VALUES (?, ?, ?, ?)",
     [session.id, session.startedAt, session.endedAt, session.configJson],
   );
 };
 
 export const endSession = (sessionId: string, endedAt: string): void => {
-  db.runSync('UPDATE sessions SET endedAt = ? WHERE id = ?', [endedAt, sessionId]);
+  db.runSync("UPDATE sessions SET endedAt = ? WHERE id = ?", [
+    endedAt,
+    sessionId,
+  ]);
 };
 
 export const insertPoint = (point: PointInsert): void => {
@@ -95,67 +98,94 @@ export const insertPoint = (point: PointInsert): void => {
 };
 
 export const writeLog = (
-  level: 'info' | 'warn' | 'error',
+  level: "info" | "warn" | "error",
   source: string,
   message: string,
   rawJson?: string,
 ): void => {
   const ts = new Date().toISOString();
   db.runSync(
-    'INSERT INTO logs(ts, level, source, message, rawJson) VALUES (?, ?, ?, ?, ?)',
+    "INSERT INTO logs(ts, level, source, message, rawJson) VALUES (?, ?, ?, ?, ?)",
     [ts, level, source, message, rawJson ?? null],
   );
-  if (level === 'error') {
-    db.runSync('INSERT OR REPLACE INTO kv(k, v) VALUES (?, ?)', ['lastTaskError', `${ts} | ${source} | ${message}`]);
+  if (level === "error") {
+    db.runSync("INSERT OR REPLACE INTO kv(k, v) VALUES (?, ?)", [
+      "lastTaskError",
+      `${ts} | ${source} | ${message}`,
+    ]);
   }
 };
 
 export const setKv = (key: string, value: string): void => {
-  db.runSync('INSERT OR REPLACE INTO kv(k, v) VALUES (?, ?)', [key, value]);
+  db.runSync("INSERT OR REPLACE INTO kv(k, v) VALUES (?, ?)", [key, value]);
 };
 
 export const getKv = (key: string): string | null => {
-  const row = db.getFirstSync<{ v: string }>('SELECT v FROM kv WHERE k = ?', [key]);
+  const row = db.getFirstSync<{ v: string }>("SELECT v FROM kv WHERE k = ?", [
+    key,
+  ]);
   return row?.v ?? null;
 };
 
 export const getSessions = (): SessionRow[] =>
-  db.getAllSync<SessionRow>('SELECT id, startedAt, endedAt, configJson FROM sessions ORDER BY startedAt DESC');
+  db.getAllSync<SessionRow>(
+    "SELECT id, startedAt, endedAt, configJson FROM sessions ORDER BY startedAt DESC",
+  );
 
 export const getSessionPointCount = (sessionId: string): number => {
-  const row = db.getFirstSync<{ cnt: number }>('SELECT COUNT(*) as cnt FROM points WHERE sessionId = ?', [sessionId]);
+  const row = db.getFirstSync<{ cnt: number }>(
+    "SELECT COUNT(*) as cnt FROM points WHERE sessionId = ?",
+    [sessionId],
+  );
   return row?.cnt ?? 0;
 };
 
-export const getSessionBounds = (sessionId: string): { firstTs: string | null; lastTs: string | null } => {
-  const row = db.getFirstSync<{ firstTs: string | null; lastTs: string | null }>(
-    'SELECT MIN(ts) as firstTs, MAX(ts) as lastTs FROM points WHERE sessionId = ?',
+export const getSessionBounds = (
+  sessionId: string,
+): { firstTs: string | null; lastTs: string | null } => {
+  const row = db.getFirstSync<{
+    firstTs: string | null;
+    lastTs: string | null;
+  }>(
+    "SELECT MIN(ts) as firstTs, MAX(ts) as lastTs FROM points WHERE sessionId = ?",
     [sessionId],
   );
   return row ?? { firstTs: null, lastTs: null };
 };
 
-export const getLastPoint = (sessionId?: string): { ts: string; lat: number; lon: number; acc: number | null } | null => {
+export const getLastPoint = (
+  sessionId?: string,
+): { ts: string; lat: number; lon: number; acc: number | null } | null => {
   if (sessionId) {
     return (
-      db.getFirstSync<{ ts: string; lat: number; lon: number; acc: number | null }>(
-        'SELECT ts, lat, lon, acc FROM points WHERE sessionId = ? ORDER BY seq DESC LIMIT 1',
+      db.getFirstSync<{
+        ts: string;
+        lat: number;
+        lon: number;
+        acc: number | null;
+      }>(
+        "SELECT ts, lat, lon, acc FROM points WHERE sessionId = ? ORDER BY seq DESC LIMIT 1",
         [sessionId],
       ) ?? null
     );
   }
   return (
-    db.getFirstSync<{ ts: string; lat: number; lon: number; acc: number | null }>(
-      'SELECT ts, lat, lon, acc FROM points ORDER BY id DESC LIMIT 1',
-    ) ?? null
+    db.getFirstSync<{
+      ts: string;
+      lat: number;
+      lon: number;
+      acc: number | null;
+    }>("SELECT ts, lat, lon, acc FROM points ORDER BY id DESC LIMIT 1") ?? null
   );
 };
 
-
-
-export const getSessionPointsChunk = (sessionId: string, limit: number, offset: number): Record<string, unknown>[] =>
+export const getSessionPointsChunk = (
+  sessionId: string,
+  limit: number,
+  offset: number,
+): Record<string, unknown>[] =>
   db.getAllSync<Record<string, unknown>>(
-    'SELECT id, sessionId, seq, ts, lat, lon, acc, alt, altitudeAccuracy, speed, heading, rawJson FROM points WHERE sessionId = ? ORDER BY seq ASC LIMIT ? OFFSET ?',
+    "SELECT id, sessionId, seq, ts, lat, lon, acc, alt, altitudeAccuracy, speed, heading, rawJson FROM points WHERE sessionId = ? ORDER BY seq ASC LIMIT ? OFFSET ?",
     [sessionId, limit, offset],
   );
 

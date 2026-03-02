@@ -1,11 +1,10 @@
-import * as Application from 'expo-application';
-import * as Device from 'expo-device';
-import * as IntentLauncher from 'expo-intent-launcher';
-import * as Linking from 'expo-linking';
-import * as Location from 'expo-location';
-import { Platform } from 'react-native';
+import * as Application from "expo-application";
+import * as Device from "expo-device";
+import * as IntentLauncher from "expo-intent-launcher";
+import * as Location from "expo-location";
+import { Linking, Platform } from "react-native";
 
-import { getKv } from './db';
+import { getKv } from "./db";
 
 export type DiagnosticsDump = {
   platform: string;
@@ -25,34 +24,44 @@ export type DiagnosticsDump = {
 };
 
 export const isSamsungDevice = (): boolean => {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS !== "android") {
     return false;
   }
-  const b = `${Device.brand ?? ''} ${Device.manufacturer ?? ''}`.toLowerCase();
-  return b.includes('samsung');
+  const b = `${Device.brand ?? ""} ${Device.manufacturer ?? ""}`.toLowerCase();
+  return b.includes("samsung");
 };
 
 export const openLocationSettings = async (): Promise<void> => {
-  if (Platform.OS === 'android') {
-    await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.LOCATION_SOURCE_SETTINGS);
+  if (Platform.OS === "android") {
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.ActivityAction.LOCATION_SOURCE_SETTINGS,
+    );
     return;
   }
-  await Linking.openURL('app-settings:');
+  await Linking.openURL("app-settings:");
 };
 
 export const openNotificationSettings = async (): Promise<void> => {
-  if (Platform.OS === 'android') {
-    await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.APP_NOTIFICATION_SETTINGS);
+  if (Platform.OS === "android") {
+    await IntentLauncher.startActivityAsync(
+      IntentLauncher.ActivityAction.APP_NOTIFICATION_SETTINGS,
+    );
     return;
   }
-  await Linking.openURL('app-settings:');
+  await Linking.openURL("app-settings:");
 };
 
 export const openBatteryOptimizationSettings = async (): Promise<void> => {
-  if (Platform.OS !== 'android') {
+  if (Platform.OS !== "android") {
     return;
   }
-  await IntentLauncher.startActivityAsync(IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+  await IntentLauncher.startActivityAsync(
+    IntentLauncher.ActivityAction.IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+  );
+};
+
+export const openAppSettings = async (): Promise<void> => {
+  await Linking.openSettings();
 };
 
 export const getDiagnostics = async (): Promise<DiagnosticsDump> => {
@@ -73,7 +82,8 @@ export const getDiagnostics = async (): Promise<DiagnosticsDump> => {
       background: bg.status,
     },
     locationServicesEnabled: servicesEnabled,
-    batteryOptimization: Platform.OS === 'android' ? 'unknown (Expo managed)' : 'n/a',
-    lastTaskError: getKv('lastTaskError') ?? 'none',
+    batteryOptimization:
+      Platform.OS === "android" ? "unknown (Expo managed)" : "n/a",
+    lastTaskError: getKv("lastTaskError") ?? "none",
   };
 };

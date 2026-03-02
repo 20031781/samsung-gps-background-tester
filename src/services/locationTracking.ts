@@ -1,14 +1,21 @@
-import 'react-native-get-random-values';
-import * as Battery from 'expo-battery';
-import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
-import { Platform } from 'react-native';
-import { v4 as uuidv4 } from 'uuid';
+import "react-native-get-random-values";
+import * as Battery from "expo-battery";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import * as TaskManager from "expo-task-manager";
+import { Platform } from "react-native";
+import { v4 as uuidv4 } from "uuid";
 
-import { endSession, getKv, insertPoint, insertSession, setKv, writeLog } from './db';
+import {
+  endSession,
+  getKv,
+  insertPoint,
+  insertSession,
+  setKv,
+  writeLog,
+} from "./db";
 
-export const LOCATION_TASK_NAME = 'gps-background-task';
+export const LOCATION_TASK_NAME = "gps-background-task";
 
 export type TrackingConfig = {
   timeIntervalMs: number;
@@ -24,67 +31,84 @@ const defaultConfig: TrackingConfig = {
   deferredUpdatesDistanceM: 20,
 };
 
-const safeTaskError = (error: unknown): string => (error instanceof Error ? error.message : JSON.stringify(error));
+const safeTaskError = (error: unknown): string =>
+  error instanceof Error ? error.message : JSON.stringify(error);
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
-  if (error) {
-    const msg = safeTaskError(error);
-    console.error('[task-error]', msg);
-    writeLog('error', 'task', msg);
-    return;
-  }
+const notificationsGranted = (
+  notif: Notifications.NotificationPermissionsStatus,
+): boolean =>
+  notif.granted ||
+  notif.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
 
-  const payload = data as Location.LocationTaskBody | undefined;
-  if (!payload?.locations?.length) {
-    return;
-  }
+type LocationTaskData = {
+  locations?: Location.LocationObject[];
+};
 
-  const sessionId = getKv('activeSessionId');
-  if (!sessionId) {
-    writeLog('warn', 'task', 'Ricevuto punto senza sessione attiva');
-    return;
-  }
-
-  const appState = 'background';
-  for (const location of payload.locations) {
-    const seq = Number(getKv('seq') ?? '0') + 1;
-    setKv('seq', `${seq}`);
-
-    let batteryLevel: number | null = null;
-    let batteryState: string | null = null;
-    try {
-      batteryLevel = await Battery.getBatteryLevelAsync();
-      batteryState = String(await Battery.getBatteryStateAsync());
-    } catch {
-      batteryLevel = null;
-      batteryState = null;
+TaskManager.defineTask<LocationTaskData>(
+  LOCATION_TASK_NAME,
+  async ({
+    data,
+    error,
+  }: TaskManager.TaskManagerTaskBody<LocationTaskData>) => {
+    if (error) {
+      const msg = safeTaskError(error);
+      console.error("[task-error]", msg);
+      writeLog("error", "task", msg);
+      return;
     }
 
-    const raw = {
-      ...location,
-      providerStatus: payload?.locations?.[0]?.mocked,
-      batteryLevel,
-      batteryState,
-      appState,
-    };
+    const locations = data?.locations;
+    if (!locations?.length) {
+      return;
+    }
 
-    insertPoint({
-      sessionId,
-      seq,
-      ts: new Date(location.timestamp).toISOString(),
-      lat: location.coords.latitude,
-      lon: location.coords.longitude,
-      acc: location.coords.accuracy ?? null,
-      alt: location.coords.altitude ?? null,
-      altitudeAccuracy: location.coords.altitudeAccuracy ?? null,
-      speed: location.coords.speed ?? null,
-      heading: location.coords.heading ?? null,
-      rawJson: JSON.stringify(raw),
-    });
-  }
+    const sessionId = getKv("activeSessionId");
+    if (!sessionId) {
+      writeLog("warn", "task", "Ricevuto punto senza sessione attiva");
+      return;
+    }
 
-  setKv('lastUpdateTs', new Date().toISOString());
-});
+    const appState = "background";
+    for (const location of locations) {
+      const seq = Number(getKv("seq") ?? "0") + 1;
+      setKv("seq", `${seq}`);
+
+      let batteryLevel: number | null = null;
+      let batteryState: string | null = null;
+      try {
+        batteryLevel = await Battery.getBatteryLevelAsync();
+        batteryState = String(await Battery.getBatteryStateAsync());
+      } catch {
+        batteryLevel = null;
+        batteryState = null;
+      }
+
+      const raw = {
+        ...location,
+        providerStatus: locations[0]?.mocked,
+        batteryLevel,
+        batteryState,
+        appState,
+      };
+
+      insertPoint({
+        sessionId,
+        seq,
+        ts: new Date(location.timestamp).toISOString(),
+        lat: location.coords.latitude,
+        lon: location.coords.longitude,
+        acc: location.coords.accuracy ?? null,
+        alt: location.coords.altitude ?? null,
+        altitudeAccuracy: location.coords.altitudeAccuracy ?? null,
+        speed: location.coords.speed ?? null,
+        heading: location.coords.heading ?? null,
+        rawJson: JSON.stringify(raw),
+      });
+    }
+
+    setKv("lastUpdateTs", new Date().toISOString());
+  },
+);
 
 export const getDefaultConfig = (): TrackingConfig => defaultConfig;
 
@@ -94,20 +118,66 @@ export const requestPermissions = async (): Promise<{
   notificationsGranted: boolean;
 }> => {
   const fg = await Location.requestForegroundPermissionsAsync();
-  const bg = await Location.requestBackgroundPermissionsAsync();
+  const bg = fg.granted
+    ? await Location.requestBackgroundPermissionsAsync()
+    : await Location.getBackgroundPermissionsAsync();
   const notif = await Notifications.requestPermissionsAsync();
 
   return {
     fgGranted: fg.granted,
     bgGranted: bg.granted,
-    notificationsGranted: notif.granted || notif.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL,
+    notificationsGranted: notificationsGranted(notif),
   };
 };
 
-export const startTracking = async (config: TrackingConfig): Promise<string> => {
+const ensureTrackingPreconditions = async (): Promise<void> => {
+  const fgCurrent = await Location.getForegroundPermissionsAsync();
+  const fg = fgCurrent.granted
+    ? fgCurrent
+    : await Location.requestForegroundPermissionsAsync();
+  if (!fg.granted) {
+    throw new Error("Permesso posizione foreground non concesso.");
+  }
+
+  const bgCurrent = await Location.getBackgroundPermissionsAsync();
+  const bg = bgCurrent.granted
+    ? bgCurrent
+    : await Location.requestBackgroundPermissionsAsync();
+  if (!bg.granted) {
+    if (Platform.OS === "android") {
+      throw new Error(
+        'Permesso posizione background non concesso. Imposta "Consenti sempre" dalle impostazioni app.',
+      );
+    }
+    throw new Error("Permesso posizione background non concesso.");
+  }
+
+  const servicesEnabled = await Location.hasServicesEnabledAsync();
+  if (!servicesEnabled) {
+    throw new Error("Servizi di localizzazione disattivati sul dispositivo.");
+  }
+
+  if (Platform.OS === "android") {
+    const notifCurrent = await Notifications.getPermissionsAsync();
+    const notif = notificationsGranted(notifCurrent)
+      ? notifCurrent
+      : await Notifications.requestPermissionsAsync();
+    if (!notificationsGranted(notif)) {
+      throw new Error(
+        "Permesso notifiche non concesso. Necessario per foreground service Android.",
+      );
+    }
+  }
+};
+
+export const startTracking = async (
+  config: TrackingConfig,
+): Promise<string> => {
   const sessionId = uuidv4();
   const startedAt = new Date().toISOString();
   try {
+    await ensureTrackingPreconditions();
+
     await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
       accuracy: Location.Accuracy.Highest,
       timeInterval: config.timeIntervalMs,
@@ -116,24 +186,25 @@ export const startTracking = async (config: TrackingConfig): Promise<string> => 
       deferredUpdatesDistance: config.deferredUpdatesDistanceM,
       showsBackgroundLocationIndicator: true,
       pausesUpdatesAutomatically: false,
-      foregroundService: Platform.OS === 'android'
-        ? {
-            notificationTitle: 'Tracking attivo',
-            notificationBody: 'Raccolta GPS in background in corso.',
-            notificationColor: '#222222',
-          }
-        : undefined,
+      foregroundService:
+        Platform.OS === "android"
+          ? {
+              notificationTitle: "Tracking attivo",
+              notificationBody: "Raccolta GPS in background in corso.",
+              notificationColor: "#222222",
+            }
+          : undefined,
     });
   } catch (error) {
     const msg = safeTaskError(error);
-    writeLog('error', 'tracking', `Impossibile avviare la sessione: ${msg}`);
+    writeLog("error", "tracking", `Impossibile avviare la sessione: ${msg}`);
     throw error;
   }
 
-  setKv('activeSessionId', sessionId);
-  setKv('seq', '0');
-  setKv('lastUpdateTs', startedAt);
-  setKv('config', JSON.stringify(config));
+  setKv("activeSessionId", sessionId);
+  setKv("seq", "0");
+  setKv("lastUpdateTs", startedAt);
+  setKv("config", JSON.stringify(config));
 
   insertSession({
     id: sessionId,
@@ -142,23 +213,24 @@ export const startTracking = async (config: TrackingConfig): Promise<string> => 
     configJson: JSON.stringify(config),
   });
 
-  writeLog('info', 'tracking', `Sessione avviata: ${sessionId}`);
+  writeLog("info", "tracking", `Sessione avviata: ${sessionId}`);
   return sessionId;
 };
 
 export const stopTracking = async (): Promise<void> => {
-  const running = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+  const running =
+    await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
   if (!running) {
     return;
   }
   await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
 
-  const activeSessionId = getKv('activeSessionId');
+  const activeSessionId = getKv("activeSessionId");
   if (activeSessionId) {
     endSession(activeSessionId, new Date().toISOString());
   }
-  setKv('activeSessionId', '');
-  writeLog('info', 'tracking', 'Sessione terminata');
+  setKv("activeSessionId", "");
+  writeLog("info", "tracking", "Sessione terminata");
 };
 
 export const isTrackingRunning = async (): Promise<boolean> =>
@@ -169,11 +241,12 @@ export const getRuntimeState = (): {
   lastUpdateTs: string | null;
   seq: number;
 } => {
-  const activeSessionId = getKv('activeSessionId');
-  const lastUpdateTs = getKv('lastUpdateTs');
-  const seq = Number(getKv('seq') ?? '0');
+  const activeSessionId = getKv("activeSessionId");
+  const lastUpdateTs = getKv("lastUpdateTs");
+  const seq = Number(getKv("seq") ?? "0");
   return {
-    activeSessionId: activeSessionId || null,
+    activeSessionId:
+      activeSessionId && activeSessionId.length > 0 ? activeSessionId : null,
     lastUpdateTs,
     seq,
   };

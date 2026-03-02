@@ -4,8 +4,11 @@
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
+    "go": "expo start --go",
+    "dev-build": "expo run:android --device",
+    "release-build": "powershell -ExecutionPolicy Bypass -File .\\scripts\\build-release-local.ps1",
+    "start": "npm run go",
+    "android": "npm run dev-build",
     "ios": "expo run:ios",
     "lint": "eslint . --ext .ts,.tsx",
     "type-check": "tsc --noEmit"
